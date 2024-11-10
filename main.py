@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 import keyboard
 import time
+import threading
 
 # Capture the screen
 def capture_screen():
@@ -49,13 +50,9 @@ def solve_minesweeper(detected_elements, reference_images):
         grid[(x, y)] = key
 
     moves = []
-    
-    # print('Closed tiles:', [pos for pos, val in grid.items() if val == 'closed'])
-    # number_tiles = [(pos, val) for pos, val in grid.items() if val.isdigit()]
-    # print('Number tiles:', number_tiles)
+    bombs = [] 
 
     for (x, y), value in grid.items():
-        bombs = []
         if value.isdigit():
             num = int(value)
             tile_size = reference_images['closed'].shape[1]
@@ -65,6 +62,11 @@ def solve_minesweeper(detected_elements, reference_images):
             flagged_neighbors = [n for n in neighbors if any(positions_are_close(n, key) and grid[key] == 'flag' for key in grid)]
             # print('closed_neighbors length', len(closed_neighbors), 'flagged_neighbors length', len(flagged_neighbors), 'num', num)
 
+            if len(flagged_neighbors) == num:
+                for neighbor in closed_neighbors:
+                    if neighbor not in moves:
+                        moves.append(neighbor)
+
             # detect the bomb
             if len(closed_neighbors) == num:
                 for neighbor in closed_neighbors:
@@ -73,14 +75,8 @@ def solve_minesweeper(detected_elements, reference_images):
                         if neighbor not in flagged_neighbors:
                             perform_clicks([neighbor], button='right')
                             bombs.append(neighbor)
-
-            if len(flagged_neighbors) == num:
-                for neighbor in closed_neighbors:
-                    if neighbor not in moves:
-                        moves.append(neighbor)
         
-        # TODO detect the bomb and flag it
-        # TODO click the non flag tile if bomb has been detected
+        # TODO fix bomb and flag bug
 
     print('moves', moves)
 
@@ -93,9 +89,8 @@ def solve_minesweeper(detected_elements, reference_images):
             if closed_tiles:
                 random_closed_tile = closed_tiles[np.random.randint(len(closed_tiles))]
                 # moves.append(random_closed_tile)
-                perform_clicks([random_closed_tile], button='left')
+                perform_clicks([random_closed_tile])
                 print('random click at', random_closed_tile)
-        
 
     return moves
 
@@ -104,34 +99,53 @@ def perform_clicks(moves, button='left'):
     for move in moves:
         x, y = move
         pyautogui.click(x, y, button=button)
-        
 
-def main():
-    # Load the reference images for numbers and tiles
-    reference_images = {
-      '1': cv2.imread('res/1.png'),
-      '2': cv2.imread('res/2.png'),
-      '3': cv2.imread('res/3.png'),
-      '4': cv2.imread('res/4.png'),
-      'closed': cv2.imread('res/close-tile.png'),
-      'flag': cv2.imread('res/flag.png')
-    }
-    
+
+solver_running = False
+stop_program = False
+
+def key_listener():
+    global solver_running, stop_program
     while True:
         if keyboard.is_pressed('a'):
-            print("Solver started")
-            while not keyboard.is_pressed('b'):
-                screenshot = capture_screen()
-                detected_elements = detect_elements(screenshot, reference_images)
-                moves = solve_minesweeper(detected_elements, reference_images)
-                perform_clicks(moves)
-                for _ in range(40):  # Check for 'b' key press every 0.1 seconds for 5 seconds
-                    if keyboard.is_pressed('b'):
-                        print("Solver stopped")
-                        return
-                    time.sleep(0.1)
-            print("Solver stopped")
-            break
+            solver_running = not solver_running
+            if solver_running:
+                print("Solver started")
+            else:
+                print("Solver stopped")
+            time.sleep(0.2)  # Add a small delay to debounce the key press
+
+        if keyboard.is_pressed('b'):
+            solver_running = False
+            stop_program = True
+            print("Program quitting")
+            exit()
+
+        time.sleep(0.05)  # Reduce the sleep duration to make the loop more responsive
+
+
+def main():
+    global solver_running
+    threading.Thread(target=key_listener, daemon=True).start()
+
+    # Load the reference images for numbers and tiles
+    reference_images = {
+        '1': cv2.imread('res/1.png'),
+        '2': cv2.imread('res/2.png'),
+        '3': cv2.imread('res/3.png'),
+        '4': cv2.imread('res/4.png'),
+        'closed': cv2.imread('res/close-tile.png'),
+        'flag': cv2.imread('res/flag.png')
+    }
+
+    while not stop_program:
+        if solver_running:
+            screenshot = capture_screen()
+            detected_elements = detect_elements(screenshot, reference_images)
+            moves = solve_minesweeper(detected_elements, reference_images)
+            perform_clicks(moves)
+
+        time.sleep(0.1)
 
 if __name__ == "__main__":
     main()
