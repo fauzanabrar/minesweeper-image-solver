@@ -37,6 +37,8 @@ def detect_elements(screenshot, reference_images):
 
     return detected_elements
     
+def positions_are_close(pos1, pos2, tolerance=3):
+    return np.allclose(pos1, pos2, atol=tolerance)
 
 
 def solve_minesweeper(detected_elements, reference_images):
@@ -53,19 +55,30 @@ def solve_minesweeper(detected_elements, reference_images):
     # print('Number tiles:', number_tiles)
 
     for (x, y), value in grid.items():
+        bombs = []
         if value.isdigit():
             num = int(value)
             tile_size = reference_images['closed'].shape[1]
             neighbors = [(x + dx * tile_size, y + dy * tile_size) for dx in [-1, 0, 1] for dy in [-1, 0, 1] if (dx, dy) != (0, 0)]
-            closed_neighbors = [n for n in neighbors if grid.get(n) == 'closed']
             
+            closed_neighbors = [n for n in neighbors if any(positions_are_close(n, key) and grid[key] == 'closed' for key in grid)]
+            flagged_neighbors = [n for n in neighbors if any(positions_are_close(n, key) and grid[key] == 'flag' for key in grid)]
+            # print('closed_neighbors length', len(closed_neighbors), 'flagged_neighbors length', len(flagged_neighbors), 'num', num)
+
             # detect the bomb
             if len(closed_neighbors) == num:
-                print('closed_neighbors',closed_neighbors, 'num', num)
+                for neighbor in closed_neighbors:
+                    if neighbor not in bombs:
+                        # check if it flagged already
+                        if neighbor not in flagged_neighbors:
+                            perform_clicks([neighbor], button='right')
+                            bombs.append(neighbor)
+
+            if len(flagged_neighbors) == num:
                 for neighbor in closed_neighbors:
                     if neighbor not in moves:
                         moves.append(neighbor)
-            
+        
         # TODO detect the bomb and flag it
         # TODO click the non flag tile if bomb has been detected
 
@@ -82,23 +95,12 @@ def solve_minesweeper(detected_elements, reference_images):
                 # moves.append(random_closed_tile)
                 perform_clicks([random_closed_tile], button='left')
                 print('random click at', random_closed_tile)
-        else:
-            print('there are number tiles')
-            for (x, y) in number_tiles:
-                num = int(grid[(x, y)])
-                tile_size = reference_images['closed'].shape[1]
-                neighbors = [(x + dx * tile_size, y + dy * tile_size) for dx in [-1, 0, 1] for dy in [-1, 0, 1] if (dx, dy) != (0, 0)]
-                closed_neighbors = [n for n in neighbors if grid.get(n) == 'closed']
-                flagged_neighbors = [n for n in neighbors if grid.get(n) == 'flag']
-                if len(flagged_neighbors) == num:
-                    for neighbor in closed_neighbors:
-                        if neighbor not in moves:
-                            moves.append(neighbor)
+        
 
     return moves
 
 
-def perform_clicks(moves, button='right'):
+def perform_clicks(moves, button='left'):
     for move in moves:
         x, y = move
         pyautogui.click(x, y, button=button)
@@ -123,7 +125,7 @@ def main():
                 detected_elements = detect_elements(screenshot, reference_images)
                 moves = solve_minesweeper(detected_elements, reference_images)
                 perform_clicks(moves)
-                for _ in range(30):  # Check for 'b' key press every 0.1 seconds for 5 seconds
+                for _ in range(40):  # Check for 'b' key press every 0.1 seconds for 5 seconds
                     if keyboard.is_pressed('b'):
                         print("Solver stopped")
                         return
