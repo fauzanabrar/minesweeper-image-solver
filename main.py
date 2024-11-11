@@ -41,16 +41,23 @@ def detect_elements(screenshot, reference_images):
 def positions_are_close(pos1, pos2, tolerance=3):
     return np.allclose(pos1, pos2, atol=tolerance)
 
+def filter_moves(moves, min_distance=2):
+    filtered_moves = []
+    for move in moves:
+        if all(np.linalg.norm(np.array(move[:2]) - np.array(existing_move[:2])) >= min_distance for existing_move in filtered_moves):
+            filtered_moves.append(move)
+    return filtered_moves
 
 def solve_minesweeper(detected_elements, reference_images):
-    # Create a grid to represent the game board
+    moves = []
+    bombs = [] 
+
     grid = {}
+
     for element in detected_elements:
         key, (x, y) = element
         grid[(x, y)] = key
 
-    moves = []
-    bombs = [] 
 
     for (x, y), value in grid.items():
         if value.isdigit():
@@ -66,14 +73,14 @@ def solve_minesweeper(detected_elements, reference_images):
             if len(flagged_neighbors) == num:
                 for neighbor in closed_neighbors:
                     if neighbor not in moves:
-                        moves.append(neighbor)
+                        moves.append((neighbor[0], neighbor[1], 'left'))
             # detect the bomb
             elif len(all_neighbors) == num:
                 for neighbor in closed_neighbors:
                     if neighbor not in bombs:
                         # check if it flagged already
                         if neighbor not in flagged_neighbors:
-                            perform_clicks([neighbor], button='right')
+                            moves.append((neighbor[0], neighbor[1], 'right'))
                             bombs.append(neighbor)
 
         
@@ -86,16 +93,15 @@ def solve_minesweeper(detected_elements, reference_images):
         closed_tiles = [pos for pos, val in grid.items() if val == 'closed']
         if closed_tiles:
             random_closed_tile = closed_tiles[np.random.randint(len(closed_tiles))]
-            moves.append(random_closed_tile)
-            # perform_clicks([random_closed_tile])
+            moves.append((random_closed_tile[0], random_closed_tile[1], 'left'))
             print('random click at', random_closed_tile)
 
     return moves
 
 
-def perform_clicks(moves, button='left'):
+def perform_clicks(moves):
     for move in moves:
-        x, y = move
+        x, y, button = move
         pyautogui.click(x, y, button=button)
 
 
@@ -141,9 +147,10 @@ def main():
             screenshot = capture_screen()
             detected_elements = detect_elements(screenshot, reference_images)
             moves = solve_minesweeper(detected_elements, reference_images)
-            perform_clicks(moves)
+            filtered_moves = filter_moves(moves)
+            perform_clicks(filtered_moves)
 
-        time.sleep(2)
-
+        time.sleep(1)
 if __name__ == "__main__":
     main()
+
