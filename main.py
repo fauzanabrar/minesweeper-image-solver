@@ -9,13 +9,32 @@ import time
 import threading
 import os
 
+original_width = 1920
+original_height = 1080
+cropped_x = 260
+cropped_y = 150
+cropped_width = 545 - cropped_x
+cropped_height = 440 - cropped_y
+
+croped_size = (cropped_x, cropped_y, cropped_width, cropped_height)
+
 # Capture the screen
-def capture_screen():
+def capture_screen(croped_size=None):
     with mss.mss() as sct:
         monitor = sct.monitors[1]  # Capture the primary monitor
         screenshot = sct.grab(monitor)
         img = np.array(screenshot)
         img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+        
+        # Crop the image to the specified region
+        if croped_size:
+            img = img[croped_size[1]:croped_size[1] + croped_size[3], croped_size[0]:croped_size[0] + croped_size[2]]
+
+        # Display the cropped image
+        # cv2.imshow('Cropped Screenshot', img)
+        # cv2.waitKey(0)  # Wait for a key press to close the window
+        # cv2.destroyAllWindows()
+
         return img
 
 def detect_elements(screenshot, reference_images):
@@ -35,7 +54,9 @@ def detect_elements(screenshot, reference_images):
             
             # Check if the center is within an already detected region
             if detected_mask[pt[1]:pt[1] + template_height, pt[0]:pt[0] + template_width].sum() == 0:
-                detected_elements.append((key, element_center))
+                original_center = (element_center[0] + cropped_x, element_center[1] + cropped_y)
+                detected_elements.append((key, original_center))
+
                 # Mark this region as detected
                 detected_mask[pt[1]:pt[1] + template_height, pt[0]:pt[0] + template_width] = 1
 
@@ -150,7 +171,7 @@ def main():
 
     while not stop_program:
         if solver_running:
-            screenshot = capture_screen()
+            screenshot = capture_screen(croped_size=croped_size)
             detected_elements = detect_elements(screenshot, reference_images)
             moves = solve_minesweeper(detected_elements, reference_images)
             filtered_moves = filter_moves(moves)
