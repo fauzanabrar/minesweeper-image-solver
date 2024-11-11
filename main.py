@@ -2,18 +2,21 @@
 
 import pyautogui
 import cv2
+import mss
 import numpy as np
 import keyboard
 import time
 import threading
+import os
 
 # Capture the screen
 def capture_screen():
-    screenshot = pyautogui.screenshot()
-    screenshot = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
-    cv2.imwrite('res/table.png', screenshot)
-    return screenshot
-    
+    with mss.mss() as sct:
+        monitor = sct.monitors[1]  # Capture the primary monitor
+        screenshot = sct.grab(monitor)
+        img = np.array(screenshot)
+        img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+        return img
 
 def detect_elements(screenshot, reference_images):
     gray = cv2.cvtColor(screenshot, cv2.COLOR_BGR2GRAY)
@@ -83,18 +86,13 @@ def solve_minesweeper(detected_elements, reference_images):
                             moves.append((neighbor[0], neighbor[1], 'right'))
                             bombs.append(neighbor)
 
-        
-        # TODO fix bomb and flag bug
-
-    print('moves', moves)
-
     # if all closed do random click
     if not moves:
         closed_tiles = [pos for pos, val in grid.items() if val == 'closed']
         if closed_tiles:
             random_closed_tile = closed_tiles[np.random.randint(len(closed_tiles))]
             moves.append((random_closed_tile[0], random_closed_tile[1], 'left'))
-            print('random click at', random_closed_tile)
+            # print('random click at', random_closed_tile)
 
     return moves
 
@@ -127,20 +125,28 @@ def key_listener():
 
         time.sleep(0.05)  # Reduce the sleep duration to make the loop more responsive
 
+def load_reference_images():
+    reference_images = {
+        '1': cv2.imread('res/1.png'),
+        '2': cv2.imread('res/2.png'),
+        '3': cv2.imread('res/3.png'),
+        'closed': cv2.imread('res/close-tile.png'),
+        'flag': cv2.imread('res/flag.png')
+    }
+
+    optional_images = ['4', '5']
+    for img in optional_images:
+        img_path = f'res/{img}.png'
+        if os.path.exists(img_path):
+            reference_images[img] = cv2.imread(img_path)
+
+    return reference_images
 
 def main():
     global solver_running
     threading.Thread(target=key_listener, daemon=True).start()
 
-    # Load the reference images for numbers and tiles
-    reference_images = {
-        '1': cv2.imread('res/1.png'),
-        '2': cv2.imread('res/2.png'),
-        '3': cv2.imread('res/3.png'),
-        '4': cv2.imread('res/4.png'),
-        'closed': cv2.imread('res/close-tile.png'),
-        'flag': cv2.imread('res/flag.png')
-    }
+    reference_images = load_reference_images()
 
     while not stop_program:
         if solver_running:
@@ -150,7 +156,9 @@ def main():
             filtered_moves = filter_moves(moves)
             perform_clicks(filtered_moves)
 
-        time.sleep(1)
+        time.sleep(0.01)
+
+
 if __name__ == "__main__":
     main()
 
