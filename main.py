@@ -60,21 +60,22 @@ def solve_minesweeper(detected_elements, reference_images):
             
             closed_neighbors = [n for n in neighbors if any(positions_are_close(n, key) and grid[key] == 'closed' for key in grid)]
             flagged_neighbors = [n for n in neighbors if any(positions_are_close(n, key) and grid[key] == 'flag' for key in grid)]
-            # print('closed_neighbors length', len(closed_neighbors), 'flagged_neighbors length', len(flagged_neighbors), 'num', num)
+
+            all_neighbors = closed_neighbors + flagged_neighbors
 
             if len(flagged_neighbors) == num:
                 for neighbor in closed_neighbors:
                     if neighbor not in moves:
                         moves.append(neighbor)
-
             # detect the bomb
-            if len(closed_neighbors) == num:
+            elif len(all_neighbors) == num:
                 for neighbor in closed_neighbors:
                     if neighbor not in bombs:
                         # check if it flagged already
                         if neighbor not in flagged_neighbors:
                             perform_clicks([neighbor], button='right')
                             bombs.append(neighbor)
+
         
         # TODO fix bomb and flag bug
 
@@ -82,15 +83,12 @@ def solve_minesweeper(detected_elements, reference_images):
 
     # if all closed do random click
     if not moves:
-        number_tiles = [pos for pos, val in grid.items() if val.isdigit()]
-
-        if not number_tiles:
-            closed_tiles = [pos for pos, val in grid.items() if val == 'closed']
-            if closed_tiles:
-                random_closed_tile = closed_tiles[np.random.randint(len(closed_tiles))]
-                # moves.append(random_closed_tile)
-                perform_clicks([random_closed_tile])
-                print('random click at', random_closed_tile)
+        closed_tiles = [pos for pos, val in grid.items() if val == 'closed']
+        if closed_tiles:
+            random_closed_tile = closed_tiles[np.random.randint(len(closed_tiles))]
+            moves.append(random_closed_tile)
+            # perform_clicks([random_closed_tile])
+            print('random click at', random_closed_tile)
 
     return moves
 
@@ -145,7 +143,7 @@ def main():
             moves = solve_minesweeper(detected_elements, reference_images)
             perform_clicks(moves)
 
-        time.sleep(0.1)
+        time.sleep(2)
 
 if __name__ == "__main__":
     main()
